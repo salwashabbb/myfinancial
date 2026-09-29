@@ -48,6 +48,7 @@ input,select{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radi
     <button class="btn alt" style="flex:1" onclick="auth('up')">Daftar</button>
   </div>
   <button class="btn alt" style="width:100%;margin-top:8px" onclick="gh()">Masuk dengan GitHub</button>
+  <button class="btn alt" style="width:100%;margin-top:8px" onclick="forgot()">Lupa / atur password</button>
   <div id="msg"></div>
 </div>
 
@@ -68,6 +69,8 @@ input,select{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radi
 const SUPABASE_URL = "https://fqanftqyytpqzwdqdabo.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxYW5mdHF5eXRwcXp3ZHFkYWJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2OTQ5ODAsImV4cCI6MjEwNjI3MDk4MH0.a2GgO-cYVLSrHPmHp4CqSteNgq3VoG1rTUUZkNhvROI";
 // ====================================================================
+const HASH_TYPE = new URLSearchParams(location.hash.slice(1)).get("type");
+let pwAsked = false;
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const POCKETS = ["Mine","My Hero","Fish Fillets","Star Marmer"];
 const CATS = ["Makanan/i","Bahan masak","Belanja Bulanan","Bensin","Transport","Gift/Charity","Kos","Skincare","Primer","Sekunder","Tersier"];
@@ -81,9 +84,19 @@ async function auth(mode){
   const r = mode==="in" ? await sb.auth.signInWithPassword({email,password}) : await sb.auth.signUp({email,password});
   $("#msg").textContent = r.error ? r.error.message : (mode==="up" && !r.data.session ? "Cek email untuk konfirmasi, lalu masuk." : "");
 }
+async function forgot(){
+  const email = $("#em").value.trim(); if(!email){ $("#msg").textContent="Isi email dulu."; return; }
+  const r = await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin});
+  $("#msg").textContent = r.error ? r.error.message : "Link atur password dikirim ke email.";
+}
+async function askPw(){
+  pwAsked = true; const pw = prompt("Buat password baru (min. 6 karakter):");
+  if(pw){ const r = await sb.auth.updateUser({password:pw}); alert(r.error ? r.error.message : "Password tersimpan. Lain kali masuk dengan email + password."); }
+}
 const gh = () => sb.auth.signInWithOAuth({provider:"github", options:{redirectTo:location.origin}});
 
-sb.auth.onAuthStateChange((_e, s) => { user = s?.user || null; $("#login").style.display = user?"none":"block"; $("#app").style.display = user?"block":"none"; if(user){ $("#who").textContent = "Masuk sebagai: " + user.email; load(); } });
+sb.auth.onAuthStateChange((_e, s) => { user = s?.user || null; $("#login").style.display = user?"none":"block"; $("#app").style.display = user?"block":"none"; if(user && !pwAsked && (HASH_TYPE==="invite"||HASH_TYPE==="recovery")) setTimeout(askPw,300);
+  if(user){ $("#who").textContent = "Masuk sebagai: " + user.email; load(); } });
 
 async function load(){
   const {data,error} = await sb.from("transactions").select("*").order("tx_date",{ascending:false}).order("created_at",{ascending:false});
