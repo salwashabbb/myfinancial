@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Financial</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#faf6f0;--card:#fff;--bd:#eadfd6;--tx:#2b1410;--mut:#7a6a63;--red:#7a1518;--grn:#1e7a4a;--gold:#c9962b;--sel:#e7f3e9}
+*{box-sizing:border-box}body{margin:0;font-family:Poppins,system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px}
+button,input,select{font:inherit}
+#app{display:none;min-height:100vh}
+aside{position:fixed;inset:0 auto 0 0;width:230px;background:#fff;border-right:1px solid var(--bd);padding:16px;display:flex;flex-direction:column;gap:6px}
+aside h2{margin:0 0 12px;font-size:17px}aside small{color:var(--mut);font-weight:400;display:block;font-size:11px}
+.nav{padding:13px 14px;border-radius:12px;cursor:pointer;font-weight:600;color:var(--mut);border:0;background:none;text-align:left}
+.nav.on{background:var(--sel);color:var(--red)}
+.who{margin-top:auto;font-size:11px;color:var(--mut);border-top:1px solid var(--bd);padding-top:10px;word-break:break-all}
+main{margin-left:230px;padding:32px 40px;max-width:1000px}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);margin:2px 0 20px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px 18px}
+.card small{color:var(--mut);display:block}.card b{font-size:22px}
+.grid{display:grid;gap:12px;margin-bottom:12px}.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}
+.saldo{background:var(--red);color:#fff;border-radius:14px;padding:16px 20px;margin-bottom:12px}.saldo b{font-size:32px}
+.in{color:var(--grn)}.out{color:var(--red)}
+h3{margin:22px 0 10px;font-size:15px}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--bd)}th{background:#f4efe9}td.r,th.r{text-align:right}
+.pie{width:200px;height:200px;border-radius:50%;flex:none}
+.row{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.leg{font-size:12px;display:flex;flex-direction:column;gap:5px}.leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+label{display:block;margin:12px 0 4px;font-weight:600;font-size:13px}
+input,select{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:#fff}
+.btn{background:var(--red);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-weight:600;cursor:pointer}
+.btn.alt{background:#fff;color:var(--tx);border:1px solid var(--bd)}
+.seg{display:flex;gap:8px}.seg button{flex:1}.seg .on{background:var(--red);color:#fff}
+.form{max-width:460px}
+.del{background:none;border:0;cursor:pointer;color:var(--red)}
+#login{max-width:360px;margin:12vh auto;padding:0 16px}
+#msg{color:var(--red);font-size:13px;min-height:18px;margin-top:8px}
+@media(max-width:800px){aside{position:static;width:auto;flex-direction:row;flex-wrap:wrap}.who{display:none}main{margin:0;padding:20px}.g4{grid-template-columns:1fr 1fr}}
+</style></head><body>
+
+<div id="login" class="card">
+  <h1>My Financial</h1><p class="sub">Masuk untuk melanjutkan</p>
+  <label>Email</label><input id="em" type="email" autocomplete="email">
+  <label>Password</label><input id="pw" type="password" autocomplete="current-password">
+  <div style="display:flex;gap:8px;margin-top:14px">
+    <button class="btn" style="flex:1" onclick="auth('in')">Masuk</button>
+    <button class="btn alt" style="flex:1" onclick="auth('up')">Daftar</button>
+  </div>
+  <button class="btn alt" style="width:100%;margin-top:8px" onclick="gh()">Masuk dengan GitHub</button>
+  <div id="msg"></div>
+</div>
+
+<div id="app">
+  <aside>
+    <h2>My Financial<small>Pencatatan pribadi</small></h2>
+    <button class="nav on" data-p="dash">📊 Dasbor</button>
+    <button class="nav" data-p="add">➕ Catat</button>
+    <button class="nav" data-p="hist">🕐 Riwayat</button>
+    <div class="who" id="who"></div>
+    <button class="nav" onclick="sb.auth.signOut()">🚪 Keluar</button>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<script>
+// ====== ISI DENGAN DATA SUPABASE KAMU (Project Settings > API) ======
+const SUPABASE_URL = "https://XXXX.supabase.co";
+const SUPABASE_ANON_KEY = "ISI_ANON_PUBLIC_KEY";
+// ====================================================================
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const POCKETS = ["Mine","My Hero","Fish Fillets","Star Marmer"];
+const CATS = ["Makanan/i","Bahan masak","Belanja Bulanan","Bensin","Transport","Gift/Charity","Kos","Skincare","Primer","Sekunder","Tersier"];
+const COLORS = ["#fde3cf","#fff1c9","#b8dbae","#8fb9a8","#9ec5d6","#e9d0dc","#c7a4d4","#f4a6b0","#7a3b00","#5bbf7a","#ff9a4d"];
+const rp = n => "Rp " + Math.round(n).toLocaleString("id-ID");
+const $ = s => document.querySelector(s);
+let tx = [], page = "dash", user = null, ftype = "in";
+
+async function auth(mode){
+  const email = $("#em").value.trim(), password = $("#pw").value;
+  const r = mode==="in" ? await sb.auth.signInWithPassword({email,password}) : await sb.auth.signUp({email,password});
+  $("#msg").textContent = r.error ? r.error.message : (mode==="up" && !r.data.session ? "Cek email untuk konfirmasi, lalu masuk." : "");
+}
+const gh = () => sb.auth.signInWithOAuth({provider:"github", options:{redirectTo:location.origin}});
+
+sb.auth.onAuthStateChange((_e, s) => { user = s?.user || null; $("#login").style.display = user?"none":"block"; $("#app").style.display = user?"block":"none"; if(user){ $("#who").textContent = "Masuk sebagai: " + user.email; load(); } });
+
+async function load(){
+  const {data,error} = await sb.from("transactions").select("*").order("tx_date",{ascending:false}).order("created_at",{ascending:false});
+  if(error) alert(error.message); tx = data||[]; render();
+}
+document.querySelectorAll("[data-p]").forEach(b => b.onclick = () => { page=b.dataset.p; document.querySelectorAll("[data-p]").forEach(x=>x.classList.toggle("on",x===b)); render(); });
+
+function render(){ $("#main").innerHTML = page==="dash"?dash():page==="add"?addForm():hist(); }
+
+function dash(){
+  const mi = tx.filter(t=>t.type==="in").reduce((a,t)=>a+ +t.amount,0), mo = tx.filter(t=>t.type==="out").reduce((a,t)=>a+ +t.amount,0);
+  const pk = POCKETS.map(p=>{const s=tx.filter(t=>t.pocket===p).reduce((a,t)=>a+(t.type==="in"?1:-1)*t.amount,0);return `<div class="card"><small>${p}</small><b>${rp(s)}</b></div>`}).join("");
+  const mine = tx.filter(t=>t.type==="out"&&t.pocket==="Mine"), tot = mine.reduce((a,t)=>a+ +t.amount,0);
+  const rows = CATS.map((c,i)=>({c,i,v:mine.filter(t=>t.category===c).reduce((a,t)=>a+ +t.amount,0)}));
+  const pct = v => tot? (v/tot*100).toFixed(2):"0.00";
+  let acc=0; const stops = rows.filter(r=>r.v).map(r=>{const a=acc,b=acc+r.v/tot*100;acc=b;return `${COLORS[r.i]} ${a}% ${b}%`}).join(",");
+  return `<h1>Dasbor</h1><p class="sub">Ringkasan keuangan saat ini</p>
+  <div class="grid g2"><div class="card"><small>Uang masuk</small><b class="in">${rp(mi)}</b></div><div class="card"><small>Uang keluar</small><b class="out">${rp(mo)}</b></div></div>
+  <div class="saldo"><small>Saldo rekening</small><br><b>${rp(mi-mo)}</b></div>
+  <h3>Saldo kantong</h3><div class="grid g4">${pk}</div>
+  <h3>Pengeluaran Mine per kategori</h3>
+  <div class="row"><div style="flex:1;min-width:300px"><table><tr><th>Kategori</th><th class="r">Nominal</th><th class="r">Persentase</th></tr>
+  ${rows.map(r=>`<tr><td><b>${r.c}</b></td><td class="r">${rp(r.v)}</td><td class="r">${pct(r.v)}%</td></tr>`).join("")}</table></div>
+  <div><div class="pie" style="background:${stops?`conic-gradient(${stops})`:"#eee"}"></div>
+  <div class="leg" style="margin-top:12px">${rows.filter(r=>r.v).map(r=>`<span><i style="background:${COLORS[r.i]}"></i>${r.c} ${pct(r.v)}%</span>`).join("")}</div></div></div>`;
+}
+
+function addForm(){
+  const today = new Date().toISOString().slice(0,10);
+  return `<h1>Catat</h1><p class="sub">Uang masuk atau keluar</p><div class="form card">
+  <div class="seg"><button class="btn alt ${ftype==="in"?"on":""}" onclick="setT('in')">Uang masuk</button><button class="btn alt ${ftype==="out"?"on":""}" onclick="setT('out')">Uang keluar</button></div>
+  <label>Kantong</label><select id="fp" onchange="catToggle()">${POCKETS.map(p=>`<option>${p}</option>`).join("")}</select>
+  <div id="cw" style="display:none"><label>Kategori (Mine)</label><select id="fc">${CATS.map(c=>`<option>${c}</option>`).join("")}</select></div>
+  <label>Nominal (Rp)</label><input id="fa" type="number" min="1" inputmode="numeric">
+  <label>Tanggal</label><input id="fd" type="date" value="${today}">
+  <label>Keterangan</label><input id="fn" placeholder="Contoh: gaji, makan siang...">
+  <button class="btn" style="margin-top:16px;width:100%" onclick="save()">Simpan</button></div>`;
+}
+function setT(t){ftype=t;render()}
+function catToggle(){ $("#cw").style.display = (ftype==="out" && $("#fp").value==="Mine") ? "block":"none"; }
+async function save(){
+  const amount = +$("#fa").value; if(!(amount>0)) return alert("Isi nominal");
+  const pocket = $("#fp").value, category = ftype==="out" && pocket==="Mine" ? $("#fc").value : null;
+  const {error} = await sb.from("transactions").insert({user_id:user.id,type:ftype,pocket,category,amount,tx_date:$("#fd").value,note:$("#fn").value.trim()});
+  if(error) return alert(error.message);
+  page="hist"; document.querySelectorAll("[data-p]").forEach(x=>x.classList.toggle("on",x.dataset.p==="hist")); load();
+}
+function hist(){
+  return `<h1>Riwayat</h1><p class="sub">Semua transaksi</p><table><tr><th>Tanggal</th><th>Kantong</th><th>Kategori</th><th>Keterangan</th><th class="r">Nominal</th><th></th></tr>
+  ${tx.map(t=>`<tr><td>${t.tx_date}</td><td>${t.pocket}</td><td>${t.category||"-"}</td><td>${(t.note||"").replace(/</g,"&lt;")}</td><td class="r ${t.type==="in"?"in":"out"}">${t.type==="in"?"+":"-"}${rp(t.amount)}</td><td><button class="del" onclick="del('${t.id}')">🗑</button></td></tr>`).join("")||"<tr><td colspan=6>Belum ada transaksi</td></tr>"}</table>`;
+}
+async function del(id){ if(confirm("Hapus transaksi ini?")){ await sb.from("transactions").delete().eq("id",id); load(); } }
+</script></body></html>
