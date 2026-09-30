@@ -104,13 +104,16 @@ async function load(){
 }
 document.querySelectorAll("[data-p]").forEach(b => b.onclick = () => { page=b.dataset.p; document.querySelectorAll("[data-p]").forEach(x=>x.classList.toggle("on",x===b)); render(); });
 
-function render(){ $("#main").innerHTML = page==="dash"?dash():page==="add"?addForm():hist(); }
+function render(){ $("#main").innerHTML = page==="dash"?dash():page==="add"?addForm():hist(); if(page==="add") catToggle(); }
 
 function dash(){
   const mi = tx.filter(t=>t.type==="in").reduce((a,t)=>a+ +t.amount,0), mo = tx.filter(t=>t.type==="out").reduce((a,t)=>a+ +t.amount,0);
-  const pk = POCKETS.map(p=>{const s=tx.filter(t=>t.pocket===p).reduce((a,t)=>a+(t.type==="in"?1:-1)*t.amount,0);return `<div class="card"><small>${p}</small><b>${rp(s)}</b></div>`}).join("");
+  const eff=(t,src)=>t.type==="tf"?(src?(t.source===src?-1:1)*t.amount:0):(t.type==="in"?1:-1)*t.amount;
+  const bal=(p,src)=>tx.filter(t=>t.pocket===p&&(t.type==="tf"||!src||(t.source||"Rekening")===src)).reduce((a,t)=>a+eff(t,src),0);
+  const pk = POCKETS.map(p=>`<div class="card"><small>${p}</small><b>${rp(bal(p))}</b>${p==="Mine"?`<div style="font-size:12px;color:var(--mut);margin-top:4px">Rekening ${rp(bal(p,"Rekening"))}<br>Cash ${rp(bal(p,"Cash"))}</div>`:""}</div>`).join("");
   const mine = tx.filter(t=>t.type==="out"&&t.pocket==="Mine"), tot = mine.reduce((a,t)=>a+ +t.amount,0);
-  const rows = CATS.map((c,i)=>({c,i,v:mine.filter(t=>t.category===c).reduce((a,t)=>a+ +t.amount,0)}));
+  const sm=(c,src)=>mine.filter(t=>t.category===c&&(!src||(t.source||"Rekening")===src)).reduce((a,t)=>a+ +t.amount,0);
+  const rows = CATS.map((c,i)=>({c,i,v:sm(c),rk:sm(c,"Rekening"),cs:sm(c,"Cash")}));
   const pct = v => tot? (v/tot*100).toFixed(2):"0.00";
   let acc=0; const stops = rows.filter(r=>r.v).map(r=>{const a=acc,b=acc+r.v/tot*100;acc=b;return `${COLORS[r.i]} ${a}% ${b}%`}).join(",");
   return `<h1>Dasbor</h1><p class="sub">Ringkasan keuangan saat ini</p>
@@ -118,8 +121,8 @@ function dash(){
   <div class="saldo"><small>Saldo rekening</small><br><b>${rp(mi-mo)}</b></div>
   <h3>Saldo kantong</h3><div class="grid g4">${pk}</div>
   <h3>Pengeluaran Mine per kategori</h3>
-  <div class="row"><div style="flex:1;min-width:300px"><table><tr><th>Kategori</th><th class="r">Nominal</th><th class="r">Persentase</th></tr>
-  ${rows.map(r=>`<tr><td><b>${r.c}</b></td><td class="r">${rp(r.v)}</td><td class="r">${pct(r.v)}%</td></tr>`).join("")}</table></div>
+  <div class="row"><div style="flex:1;min-width:300px"><table><tr><th>Kategori</th><th class="r">Rekening</th><th class="r">Cash</th><th class="r">Total</th><th class="r">Persentase</th></tr>
+  ${rows.map(r=>`<tr><td><b>${r.c}</b></td><td class="r">${rp(r.rk)}</td><td class="r">${rp(r.cs)}</td><td class="r">${rp(r.v)}</td><td class="r">${pct(r.v)}%</td></tr>`).join("")}</table></div>
   <div><div class="pie" style="background:${stops?`conic-gradient(${stops})`:"#eee"}"></div>
   <div class="leg" style="margin-top:12px">${rows.filter(r=>r.v).map(r=>`<span><i style="background:${COLORS[r.i]}"></i>${r.c} ${pct(r.v)}%</span>`).join("")}</div></div></div>`;
 }
@@ -127,8 +130,9 @@ function dash(){
 function addForm(){
   const today = new Date().toISOString().slice(0,10);
   return `<h1>Catat</h1><p class="sub">Uang masuk atau keluar</p><div class="form card">
-  <div class="seg"><button class="btn alt ${ftype==="in"?"on":""}" onclick="setT('in')">Uang masuk</button><button class="btn alt ${ftype==="out"?"on":""}" onclick="setT('out')">Uang keluar</button></div>
-  <label>Kantong</label><select id="fp" onchange="catToggle()">${POCKETS.map(p=>`<option>${p}</option>`).join("")}</select>
+  <div class="seg"><button class="btn alt ${ftype==="in"?"on":""}" onclick="setT('in')">Uang masuk</button><button class="btn alt ${ftype==="out"?"on":""}" onclick="setT('out')">Uang keluar</button><button class="btn alt ${ftype==="tf"?"on":""}" onclick="setT('tf')">Pindah saldo</button></div>
+  <div id="pw"><label>Kantong</label><select id="fp" onchange="catToggle()">${POCKETS.map(p=>`<option>${p}</option>`).join("")}</select></div>
+  <div id="sw" style="display:none"><label id="sl">Sumber saldo (Mine)</label><select id="fs"><option>Rekening</option><option>Cash</option></select></div>
   <div id="cw" style="display:none"><label>Kategori (Mine)</label><select id="fc">${CATS.map(c=>`<option>${c}</option>`).join("")}</select></div>
   <label>Nominal (Rp)</label><input id="fa" type="number" min="1" inputmode="numeric">
   <label>Tanggal</label><input id="fd" type="date" value="${today}">
@@ -136,17 +140,26 @@ function addForm(){
   <button class="btn" style="margin-top:16px;width:100%" onclick="save()">Simpan</button></div>`;
 }
 function setT(t){ftype=t;render()}
-function catToggle(){ $("#cw").style.display = (ftype==="out" && $("#fp").value==="Mine") ? "block":"none"; }
+function catToggle(){
+  const tf = ftype==="tf", mine = tf || $("#fp").value==="Mine";
+  $("#pw").style.display = tf ? "none":"block";
+  $("#sw").style.display = mine ? "block":"none";
+  $("#cw").style.display = (ftype==="out" && mine) ? "block":"none";
+  $("#sl").textContent = tf ? "Arah pemindahan" : "Sumber saldo (Mine)";
+  const fs=$("#fs"), cur=fs.value;
+  fs.innerHTML = tf ? '<option value="Rekening">Rekening → Cash (tarik tunai)</option><option value="Cash">Cash → Rekening (setor)</option>' : '<option>Rekening</option><option>Cash</option>';
+  fs.value = cur;
+}
 async function save(){
   const amount = +$("#fa").value; if(!(amount>0)) return alert("Isi nominal");
-  const pocket = $("#fp").value, category = ftype==="out" && pocket==="Mine" ? $("#fc").value : null;
-  const {error} = await sb.from("transactions").insert({user_id:user.id,type:ftype,pocket,category,amount,tx_date:$("#fd").value,note:$("#fn").value.trim()});
+  const pocket = ftype==="tf" ? "Mine" : $("#fp").value, category = ftype==="out" && pocket==="Mine" ? $("#fc").value : null;
+  const {error} = await sb.from("transactions").insert({user_id:user.id,type:ftype,pocket,source:pocket==="Mine"?$("#fs").value:null,category,amount,tx_date:$("#fd").value,note:$("#fn").value.trim()});
   if(error) return alert(error.message);
   page="hist"; document.querySelectorAll("[data-p]").forEach(x=>x.classList.toggle("on",x.dataset.p==="hist")); load();
 }
 function hist(){
   return `<h1>Riwayat</h1><p class="sub">Semua transaksi</p><table><tr><th>Tanggal</th><th>Kantong</th><th>Kategori</th><th>Keterangan</th><th class="r">Nominal</th><th></th></tr>
-  ${tx.map(t=>`<tr><td>${t.tx_date}</td><td>${t.pocket}</td><td>${t.category||"-"}</td><td>${(t.note||"").replace(/</g,"&lt;")}</td><td class="r ${t.type==="in"?"in":"out"}">${t.type==="in"?"+":"-"}${rp(t.amount)}</td><td><button class="del" onclick="del('${t.id}')">🗑</button></td></tr>`).join("")||"<tr><td colspan=6>Belum ada transaksi</td></tr>"}</table>`;
+  ${tx.map(t=>`<tr><td>${t.tx_date}</td><td>${t.type==="tf"?"Mine · "+(t.source==="Cash"?"Cash → Rekening":"Rekening → Cash"):t.pocket+(t.pocket==="Mine"?" · "+(t.source||"Rekening"):"")}</td><td>${t.category||"-"}</td><td>${(t.note||"").replace(/</g,"&lt;")}</td><td class="r ${t.type==="in"?"in":t.type==="tf"?"":"out"}">${t.type==="in"?"+":t.type==="tf"?"⇄ ":"-"}${rp(t.amount)}</td><td><button class="del" onclick="del('${t.id}')">🗑</button></td></tr>`).join("")||"<tr><td colspan=6>Belum ada transaksi</td></tr>"}</table>`;
 }
 async function del(id){ if(confirm("Hapus transaksi ini?")){ await sb.from("transactions").delete().eq("id",id); load(); } }
 </script></body></html>
