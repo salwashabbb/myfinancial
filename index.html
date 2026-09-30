@@ -47,7 +47,6 @@ input,select{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radi
     <button class="btn" style="flex:1" onclick="auth('in')">Masuk</button>
     <button class="btn alt" style="flex:1" onclick="auth('up')">Daftar</button>
   </div>
-  <button class="btn alt" style="width:100%;margin-top:8px" onclick="gh()">Masuk dengan GitHub</button>
   <button class="btn alt" style="width:100%;margin-top:8px" onclick="forgot()">Lupa / atur password</button>
   <div id="msg"></div>
 </div>
@@ -93,7 +92,6 @@ async function askPw(){
   pwAsked = true; const pw = prompt("Buat password baru (min. 6 karakter):");
   if(pw){ const r = await sb.auth.updateUser({password:pw}); alert(r.error ? r.error.message : "Password tersimpan. Lain kali masuk dengan email + password."); }
 }
-const gh = () => sb.auth.signInWithOAuth({provider:"github", options:{redirectTo:location.origin}});
 
 sb.auth.onAuthStateChange((_e, s) => { user = s?.user || null; $("#login").style.display = user?"none":"block"; $("#app").style.display = user?"block":"none"; if(user && !pwAsked && (HASH_TYPE==="invite"||HASH_TYPE==="recovery")) setTimeout(askPw,300);
   if(user){ $("#who").textContent = "Masuk sebagai: " + user.email; load(); } });
